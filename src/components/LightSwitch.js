@@ -11,7 +11,7 @@ export default function LightSwitch() {
 
   // MQTT Connection
   useEffect(() => {
-    const mqttClient = mqtt.connect("ws://localhost:1884", {
+    const mqttClient = mqtt.connect("ws://localhost:9001", {
       protocol: "ws",
       clientId: "web-client-" + Math.random().toString(16).substr(2, 8),
       reconnectPeriod: 5000,

@@ -1,37 +1,46 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import mqtt from "mqtt";
 
 export default function LightIntensityCard({ isLightOn }) {
     const [intensity, setIntensity] = useState(0);
     const [history, setHistory] = useState([]);
     const [lastUpdated, setLastUpdated] = useState("");
+    const [client, setClient] = useState(null);
 
-    // Simulasi perubahan intensitas cahaya
     useEffect(() => {
-        if (!isLightOn) {
-            setIntensity(0);
-            return;
-        }
+        const mqttClient = mqtt.connect("ws://localhost:9001", {
+            clientId: "nextjs-client-" + Math.random().toString(16).substring(2, 8),
+        });
 
-        const interval = setInterval(() => {
-            const randomValue = Math.floor(Math.random() * 21) + 80;
-            setIntensity(randomValue);
-
-            setHistory((prev) => {
-                const newHistory = [...prev, randomValue];
-                return newHistory.slice(-5);
+        mqttClient.on("connect", () => {
+            console.log("Connected to MQTT broker");
+            mqttClient.subscribe("smartlab/sensor/ldr", (err) => {
+                if (!err) console.log("Subscribed to LDR topic");
             });
-        }, 2000);
+        });
 
-        return () => clearInterval(interval);
-    }, [isLightOn]);
+        mqttClient.on("message", (topic, message) => {
+            if (topic === "smartlab/sensor/ldr") {
+                const percentage = parseInt(message.toString());
+                setIntensity(percentage);
+                
+                setHistory(prev => {
+                    const newHistory = [...prev, percentage];
+                    return newHistory.slice(-5);
+                });
+                
+                setLastUpdated(new Date().toLocaleTimeString());
+            }
+        });
 
-    // Update waktu terakhir setiap kali intensitas berubah
-    useEffect(() => {
-        const now = new Date();
-        setLastUpdated(now.toLocaleTimeString());
-    }, [intensity]);
+        setClient(mqttClient);
+
+        return () => {
+            if (mqttClient) mqttClient.end();
+        };
+    }, []);
 
     return (
         <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-6 w-full max-w-md border border-gray-100">
@@ -39,12 +48,11 @@ export default function LightIntensityCard({ isLightOn }) {
                 Light Intensity Dashboard
             </h2>
 
-            {/* Status dan intensitas saat ini */}
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center">
-                    <div
-                        className={`w-4 h-4 rounded-full mr-2 ${isLightOn ? "bg-yellow-400 animate-pulse" : "bg-gray-300"}`}
-                    ></div>
+                    <div className={`w-4 h-4 rounded-full mr-2 ${
+                        isLightOn ? "bg-yellow-400 animate-pulse" : "bg-gray-300"
+                    }`}></div>
                     <span className="text-sm font-medium text-gray-600">
                         {isLightOn ? "Active" : "Inactive"}
                     </span>
@@ -56,7 +64,6 @@ export default function LightIntensityCard({ isLightOn }) {
                 </div>
             </div>
 
-            {/* Progress bar */}
             <div className="w-full bg-gray-200 rounded-full h-2.5 mb-6">
                 <div
                     className="bg-gradient-to-r from-yellow-300 to-yellow-500 h-2.5 rounded-full transition-all duration-500"
@@ -64,7 +71,6 @@ export default function LightIntensityCard({ isLightOn }) {
                 ></div>
             </div>
 
-            {/* History */}
             <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-2">
                     RECENT HISTORY
@@ -89,19 +95,15 @@ export default function LightIntensityCard({ isLightOn }) {
                 </div>
             </div>
 
-            {/* Footer */}
             <div className="mt-6 pt-4 border-t border-gray-100 flex justify-between items-center">
                 <span className="text-xs text-gray-500">
                     Last updated: {lastUpdated}
                 </span>
-                <span
-                    className={`px-2 py-1 rounded text-xs font-medium ${intensity > 90
-                        ? "bg-red-100 text-red-800"
-                        : intensity > 70
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-blue-100 text-blue-800"
-                        }`}
-                >
+                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    intensity > 90 ? "bg-red-100 text-red-800" :
+                    intensity > 70 ? "bg-yellow-100 text-yellow-800" :
+                    "bg-blue-100 text-blue-800"
+                }`}>
                     {intensity > 90 ? "High" : intensity > 70 ? "Medium" : "Low"}
                 </span>
             </div>
